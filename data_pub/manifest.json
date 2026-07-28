@@ -89,6 +89,7 @@
     "tour/data/data_tour_list2.js",
     "tour/data/data_tour_list3.js",
     "tour/data/data_tour_list4.js",
-    "tour/data/data_tour_list5.js"
+    "tour/data/data_tour_list5.js",
+    "tv/data/data_tv_ratings.js"
   ]
 }
