@@ -1,0 +1,65 @@
+# helpmeyogurt.github.io repo의 .github/workflows/collect-movie-realtime.yml 로 복사할 것.
+# KOBIS 실시간 예매율 스냅샷 → movie/realtime_snapshot.json (20분 주기).
+# 앱은 KOBIS 직접 호출이 1순위, 이 스냅샷은 KOBIS 장애 시 폴백.
+#
+# 커밋 폭증 방지: 직전 커밋도 스냅샷 커밋이면 amend-squash(둘을 하나로 합쳐
+# force-with-lease push) — 스냅샷 커밋이 히스토리에 1개만 유지된다.
+# 다른 워크플로가 그 사이 커밋했으면 일반 커밋으로 폴백(충돌 없음).
+# ※ GitHub Actions 크론은 지연/스킵이 흔해 실제 간격은 20~40분 — 폴백 용도로 충분.
+name: collect-movie-realtime
+
+on:
+  schedule:
+    - cron: '*/20 * * * *'  # 20분 주기 (실제는 러너 사정에 따라 20~40분)
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: collect-movie-realtime
+  cancel-in-progress: true
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 5    # amend-squash에 직전 커밋 필요
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Collect realtime snapshot
+        run: |
+          for i in 1 2; do
+            node tools/collect_movie_realtime.js movie/realtime_snapshot.json && exit 0
+            echo "attempt $i failed; retrying in 30s"
+            sleep 30
+          done
+          exit 1
+
+      - name: Commit & push (amend-squash)
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git add movie/realtime_snapshot.json
+          git diff --cached --quiet && echo 'no change' && exit 0
+          SUBJ="movie: 실시간 스냅샷"
+          LAST=$(git log -1 --pretty=%s)
+          git commit -m "$SUBJ $(TZ=Asia/Seoul date +%m-%d\ %H:%M)"
+          case "$LAST" in
+            "$SUBJ"*)
+              # 직전 커밋도 스냅샷 → 둘을 하나로 합쳐 히스토리 1개 유지
+              git reset --soft HEAD~2
+              git commit -m "$SUBJ $(TZ=Asia/Seoul date +%m-%d\ %H:%M)"
+              git push --force-with-lease origin main \
+                || { git fetch origin && git rebase origin/main && git push origin main; }
+              ;;
+            *)
+              git push origin main \
+                || { git fetch origin && git rebase origin/main && git push origin main; }
+              ;;
+          esac

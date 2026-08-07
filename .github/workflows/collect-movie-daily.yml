@@ -1,0 +1,52 @@
+# helpmeyogurt.github.io repo의 .github/workflows/collect-movie-daily.yml 로 복사할 것.
+# KOBIS 일간 박스오피스(전날 확정분) + 연간 TOP20 수집 → movie/ 폴더 커밋.
+# KOBIS 일간 발표가 보통 오전이라 새벽 1회 + 오전 2회 + 오후 막차 1회 예약.
+# 크론 스킵 대비: 실행마다 최근 14일 누락 날짜를 오픈API로 백필(스크립트 내장).
+name: collect-movie-daily
+
+on:
+  schedule:
+    - cron: '15 19 * * *'   # KST 04:15 (전날 집계가 이미 떠 있으면 수집)
+    - cron: '15 1 * * *'    # KST 10:15 (KOBIS 일간 발표 통상 시간대)
+    - cron: '20 2 * * *'    # KST 11:20 (지연 대비)
+    - cron: '15 6 * * *'    # KST 15:15 (막차 — 크론 스킵/장애 보충)
+  workflow_dispatch:        # 수동 실행 버튼
+
+permissions:
+  contents: write
+
+concurrency:
+  group: collect-movie-daily
+  cancel-in-progress: false
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # 예약 실행은 --if-missing (어제분 있으면 스킵) / 수동 실행은 강제 재수집.
+      # 네트워크 일시 오류 대비 잡 안에서도 3회 재시도.
+      - name: Collect daily + yearly boxoffice
+        run: |
+          FLAG=""
+          if [ "${{ github.event_name }}" = "schedule" ]; then FLAG="--if-missing"; fi
+          for i in 1 2 3; do
+            node tools/collect_movie_daily.js movie/daily_boxoffice.json $FLAG && exit 0
+            echo "attempt $i failed; retrying in 60s"
+            sleep 60
+          done
+          exit 1
+
+      - name: Commit & push
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git add movie/daily_boxoffice.json movie/daily_history.json movie/yearly_boxoffice.json
+          git diff --cached --quiet && echo 'no change' && exit 0
+          git commit -m "movie: 일간/연간 박스오피스 갱신 $(TZ=Asia/Seoul date +%Y-%m-%d\ %H:%M)"
+          git push || { git pull --rebase origin main && git push; }

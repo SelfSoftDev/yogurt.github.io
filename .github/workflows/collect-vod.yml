@@ -1,0 +1,52 @@
+# helpmeyogurt.github.io repo의 .github/workflows/collect-vod.yml 로 복사할 것.
+# 매일 새벽 4시대(KST) VKOBIS IPTV·케이블 VOD TOP 100을 수집해 vod/ 로 커밋.
+# (VKOBIS 집계는 D-2~D-3 지연 — 수집기가 최신 유효 집계일을 자동 탐색)
+name: collect-vod-top100
+
+on:
+  schedule:
+    - cron: '20 19 * * *'   # KST 04:20
+    - cron: '50 19 * * *'   # KST 04:50 (1차 실패/지연 대비)
+    - cron: '20 20 * * *'   # KST 05:20 (2차 대비)
+    - cron: '25 0 * * *'    # KST 09:25 (캐치업 — 새벽 크론 전체 스킵 대비)
+    - cron: '25 4 * * *'    # KST 13:25 (막차 캐치업)
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: collect-vod
+  cancel-in-progress: false
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # 예약 실행은 --if-missing (최신분 D-3 이내면 스킵) / 수동 실행은 강제.
+      # 크론 스킵으로 빠진 날짜는 스크립트가 최근 14일 범위에서 자동 백필.
+      - name: Collect VOD TOP 100
+        run: |
+          FLAG=""
+          if [ "${{ github.event_name }}" = "schedule" ]; then FLAG="--if-missing"; fi
+          for i in 1 2 3; do
+            node tools/collect_vod_top100.js vod/vod_top100.json $FLAG && exit 0
+            echo "attempt $i failed; retrying in 60s"
+            sleep 60
+          done
+          exit 1
+
+      - name: Commit & push
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git add vod/vod_top100.json vod/vod_top100_history.json
+          git diff --cached --quiet && echo 'no change' && exit 0
+          git commit -m "vod: TOP 100 갱신 $(TZ=Asia/Seoul date +%Y-%m-%d\ %H:%M)"
+          git push || { git pull --rebase origin main && git push; }
