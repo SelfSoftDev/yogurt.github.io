@@ -46,7 +46,7 @@ jobs:
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email 'github-actions[bot]@users.noreply.github.com'
-          git add movie/daily_boxoffice.json movie/daily_history.json movie/yearly_boxoffice.json
+          git add movie/daily_boxoffice.json movie/daily_history.json movie/yearly_boxoffice.json movie/mojo_world.json movie/mojo_usa.json
           git diff --cached --quiet && echo 'no change' && exit 0
           git commit -m "movie: 일간/연간 박스오피스 갱신 $(TZ=Asia/Seoul date +%Y-%m-%d\ %H:%M)"
           git push || { git pull --rebase origin main && git push; }

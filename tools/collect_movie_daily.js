@@ -29,14 +29,18 @@ const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML,
 const MOVIE_KEY = '5fd330746779bae7ba756ec8fc1acad7'; // KOBIS 오픈API 키 (앱 소스에 이미 공개된 값)
 const BACKFILL_DAYS = 14;
 
-function get(url) {
+function get(url, redirects) {
   return new Promise((resolve, reject) => {
     const u = new URL(url);
     https.get({
       hostname: u.hostname, path: u.pathname + u.search,
-      headers: { 'User-Agent': UA, 'Accept': '*/*', 'Referer': 'https://www.kobis.or.kr/' },
+      headers: { 'User-Agent': UA, 'Accept': '*/*', 'Referer': 'https://' + u.hostname + '/' },
       timeout: 25000,
     }, (res) => {
+      if (res.statusCode >= 301 && res.statusCode <= 308 && res.headers.location && (redirects || 0) < 3) {
+        res.resume();
+        return resolve(get(new URL(res.headers.location, url).href, (redirects || 0) + 1));
+      }
       if (res.statusCode !== 200) { res.resume(); return reject(new Error('HTTP ' + res.statusCode)); }
       let d = ''; res.setEncoding('utf8');
       res.on('data', c => d += c); res.on('end', () => resolve(d));
@@ -143,6 +147,40 @@ function parseYearly(html) {
       console.warn('연간: 파싱 결과 부족(' + items.length + '건) — 사이트 개편 가능성, 기존 파일 유지');
     }
   } catch (e) { console.warn('연간 수집 실패(경고만): ' + e.message); }
+
+  // ④ Box Office Mojo 세계/미국 (연간 현재연도 + 역대 TOP) — 세계(1103)/미국(1102) 탭용.
+  //    Mojo는 한국에서 3~4초 걸려 앱이 수집분을 1순위로 씀. 앱 파서를 그대로 재사용하도록
+  //    파싱하지 않고 <div id="table" ~ </main> HTML 조각을 저장 (파서 이중화 방지).
+  const year = '' + kstNow().getUTCFullYear();
+  const MOJO = [
+    { out: 'mojo_world.json', label: '세계', yearUrl: 'https://www.boxofficemojo.com/year/world/' + year + '/', allUrl: 'https://www.boxofficemojo.com/chart/ww_top_lifetime_gross/?area=XWW' },
+    { out: 'mojo_usa.json', label: '미국', yearUrl: 'https://www.boxofficemojo.com/year/' + year + '/', allUrl: 'https://www.boxofficemojo.com/chart/top_lifetime_gross/?ref_=bo_cso_ac' },
+  ];
+  const mojoFragment = (html) => {
+    const i = html.indexOf('<div id="table"');
+    if (i < 0) return null;
+    const j = html.indexOf('</main>', i);
+    if (j < 0) return null;
+    const frag = html.slice(i, j) + '</main>';
+    return (frag.split('<tr>').length >= 15) ? frag : null; // 표 행 개수 검증(개편 감지)
+  };
+  for (const m of MOJO) {
+    try {
+      const yearHtml = mojoFragment(await get(m.yearUrl));
+      const allHtml = mojoFragment(await get(m.allUrl));
+      if (!yearHtml || !allHtml) { console.warn('Mojo ' + m.label + ': 표 조각 추출 실패(개편 가능성) — 기존 파일 유지'); continue; }
+      const file = path.join(DIR, m.out);
+      const prev = readJson(file, null);
+      if (prev && prev.year === year && prev.yearHtml === yearHtml && prev.allHtml === allHtml) {
+        console.log('Mojo ' + m.label + ': 변경 없음');
+      } else {
+        fs.writeFileSync(file, JSON.stringify({ year, generated: genStamp(), yearHtml, allHtml }));
+        changed = true;
+        console.log('Mojo ' + m.label + ' 저장: ' + file + ' (연간 ' + Math.round(yearHtml.length / 1024) + 'KB + 역대 ' + Math.round(allHtml.length / 1024) + 'KB)');
+      }
+      await new Promise(r => setTimeout(r, 500));
+    } catch (e) { console.warn('Mojo ' + m.label + ' 수집 실패(경고만): ' + e.message); }
+  }
 
   if (changed) {
     fs.writeFileSync(HIST, JSON.stringify(hist));
