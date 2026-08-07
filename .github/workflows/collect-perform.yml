@@ -1,0 +1,50 @@
+# helpmeyogurt.github.io repo의 .github/workflows/collect-perform.yml 로 복사할 것.
+# KOPIS 공연 박스오피스(기간 3종 x 장르 7종)를 매일 새벽 수집 → perform/kopis.json 커밋.
+name: collect-perform-kopis
+
+on:
+  schedule:
+    - cron: '40 19 * * *'   # KST 04:40
+    - cron: '10 20 * * *'   # KST 05:10 (1차 실패/지연 대비)
+    - cron: '45 0 * * *'    # KST 09:45 (캐치업)
+    - cron: '45 4 * * *'    # KST 13:45 (막차 캐치업)
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: collect-perform
+  cancel-in-progress: false
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # 예약 실행은 --if-missing / 수동 실행은 강제 재수집. 잡 안 3회 재시도.
+      # 장르별 부분 실패는 기존 값 유지(스크립트 내장) — 전 조합 실패 시에만 잡 실패.
+      - name: Collect KOPIS boxoffice
+        run: |
+          FLAG=""
+          if [ "${{ github.event_name }}" = "schedule" ]; then FLAG="--if-missing"; fi
+          for i in 1 2 3; do
+            node tools/collect_perform_kopis.js perform/kopis.json $FLAG && exit 0
+            echo "attempt $i failed; retrying in 60s"
+            sleep 60
+          done
+          exit 1
+
+      - name: Commit & push
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git add perform/kopis.json
+          git diff --cached --quiet && echo 'no change' && exit 0
+          git commit -m "perform: KOPIS 박스오피스 갱신 $(TZ=Asia/Seoul date +%Y-%m-%d\ %H:%M)"
+          git push || { git pull --rebase origin main && git push; }
