@@ -1,0 +1,50 @@
+# helpmeyogurt.github.io repo의 .github/workflows/collect-book-history.yml 로 복사할 것.
+# 3사 주간 베스트셀러 이력 → book/history.json (통합 인기순위/급상승/신규/스테디 데이터).
+# 매일 예약이지만 스크립트가 현재 주 완비 시 스킵(--if-missing) → 실질 주 1회 갱신.
+# 실패 서점은 기존 값 유지 + SOURCE_ERROR 기록 (앱이 임시 집계로 표시).
+name: collect-book-history
+
+on:
+  schedule:
+    - cron: '30 20 * * *'   # KST 05:30
+    - cron: '55 0 * * *'    # KST 09:55 (캐치업)
+    - cron: '55 4 * * *'    # KST 13:55 (캐치업)
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: collect-book-history
+  cancel-in-progress: true
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Collect weekly history
+        run: |
+          FLAGS="--if-missing"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then FLAGS=""; fi
+          for i in 1 2; do
+            node tools/collect_book_history.js book/history.json $FLAGS && exit 0
+            echo "attempt $i failed; retrying in 60s"
+            sleep 60
+          done
+          exit 1
+
+      - name: Commit & push
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git add book/history.json
+          git diff --cached --quiet && echo 'no change' && exit 0
+          git commit -m "book: 주간 순위 이력 갱신 $(TZ=Asia/Seoul date +%m-%d)"
+          git push origin main \
+            || { git fetch origin && git rebase origin/main && git push origin main; }
