@@ -1,0 +1,48 @@
+# helpmeyogurt.github.io repo의 .github/workflows/collect-book-new.yml 로 복사할 것.
+# 서점 3사 신간 → book/new_releases.json (신간 탭 + 찜 작가 신간 알림용). API 키 불필요.
+name: collect-book-new
+
+on:
+  schedule:
+    - cron: '45 20 * * *'   # KST 05:45
+    - cron: '5 1 * * *'     # KST 10:05 (캐치업)
+    - cron: '5 5 * * *'     # KST 14:05 (캐치업)
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: collect-book-new
+  cancel-in-progress: true
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Collect new releases
+        run: |
+          FLAGS="--if-missing"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then FLAGS=""; fi
+          for i in 1 2; do
+            node tools/collect_book_new.js book/new_releases.json $FLAGS && exit 0
+            echo "attempt $i failed; retrying in 60s"
+            sleep 60
+          done
+          exit 1
+
+      - name: Commit & push
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git add book/new_releases.json
+          git diff --cached --quiet && echo 'no change' && exit 0
+          git commit -m "book: 신간 갱신 $(TZ=Asia/Seoul date +%m-%d)"
+          git push origin main \
+            || { git fetch origin && git rebase origin/main && git push origin main; }
