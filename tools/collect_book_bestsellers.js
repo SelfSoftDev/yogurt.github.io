@@ -6,7 +6,7 @@
 //    book/kyobo.json  {dateKey, generated, week|month|year:{optionsHtml, ymw, dateTxt, books[]}}
 //    book/yes24.json  {dateKey, generated, day|week|month:{selects{...}, dateTxt, books[]}}
 //    book/aladin.json {dateKey, generated, week|month:{year,month,week?, dateTxt, books[]}}
-//      (알라딘 실시간 NowBest는 수집 안 함 — 앱이 라이브 + localStorage 캐시로 처리)
+//      (알라딘 실시간 NowBest는 별도 수집기 collect_aladin_now.js — 30분 크론 스냅샷)
 //  · --if-missing: 오늘(KST) 이미 수집됐으면 스킵 (캐치업 크론용)
 //
 // 사용: node collect_book_bestsellers.js [출력폴더=book] [--if-missing]
