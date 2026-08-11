@@ -226,6 +226,68 @@ async function collectCircle() {
   return out;
 }
 
+// ---------------------------------------------------------------- 신곡 (멜론 신곡 + 지니 최신곡 — 아티스트 찜 알림·신곡 탭용)
+async function collectNewest() {
+  const out = {};
+  // 멜론 신곡 (마크업이 차트와 다름 — goSongDetail 기준 분할, rank02에서 아티스트)
+  {
+    const html = await req('https://www.melon.com/new/index.htm');
+    const rows = html.split('<a href="javascript:melon.link.goSongDetail(');
+    const items = [];
+    for (let i = 1; i < rows.length; i++) {
+      try {
+        const no = rows[i].split("'")[1];
+        const title = rows[i].split('<a href="javascript:melon.play.playSong')[1].split('">')[1].split('<')[0].trim();
+        const name = /rank02">[\s\S]*?>([^<]+)<\/a>/.exec(rows[i])[1].trim();
+        const img = rows[i - 1].split('"60" src="').pop().split('"')[0];
+        if (title && name) items.push({ no, title, name, img });
+      } catch (e) { /* 스킵 */ }
+    }
+    if (items.length < 20) throw new Error('melon 신곡: 목록 부족(' + items.length + ')');
+    out.melon = { items };
+  }
+  await sleep(500);
+  // 지니 최신곡 (title/artist가 attr·텍스트 혼합 — 첫 > 이후 텍스트)
+  {
+    const html = await req('https://www.genie.co.kr/newest/song');
+    const rows = html.split('<tr class="list"');
+    const items = [];
+    for (let i = 1; i < rows.length; i++) {
+      try {
+        const title = rows[i].split('class="title')[1].split('>')[1].split('<')[0].trim();
+        const name = rows[i].split('class="artist')[1].split('>')[1].split('<')[0].trim();
+        let img = rows[i].split('src="')[1].split('"')[0];
+        if (img.indexOf('//') === 0) img = 'https:' + img;
+        if (title && name) items.push({ title, name, img });
+      } catch (e) { /* 스킵 */ }
+    }
+    if (items.length < 15) throw new Error('genie 신곡: 목록 부족(' + items.length + ')');
+    out.genie = { items };
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------- 해외차트 미러 (서드파티 raw 중단 대비 보험)
+// 앱은 우리 미러 우선 → 원본 raw 폴백. 파일은 원본 그대로 저장.
+const BB_MIRROR = [
+  { src: 'https://raw.githubusercontent.com/KoreanThinker/billboard-json/main/billboard-hot-100/recent.json', file: 'billboard/hot100.json' },
+  { src: 'https://raw.githubusercontent.com/KoreanThinker/billboard-json/main/billboard-200/recent.json', file: 'billboard/bb200.json' },
+];
+async function mirrorBillboard(baseDir) {
+  for (const m of BB_MIRROR) {
+    try {
+      const body = await req(m.src);
+      const j = JSON.parse(body);
+      if (!j || !j.data || !j.data.length) throw new Error('빈 데이터');
+      const dest = path.join(baseDir, m.file);
+      fs.mkdirSync(path.dirname(dest), { recursive: true });
+      fs.writeFileSync(dest, body);
+      console.log('미러: ' + m.file + ' (' + j.data.length + '건, ' + (j.date || '') + ')');
+    } catch (e) { console.error('미러 실패(기존 유지): ' + m.file + ' — ' + e.message); }
+    await sleep(300);
+  }
+}
+
 // ---------------------------------------------------------------- 공유 (collect_music_now.js가 require)
 module.exports = { req, sleep, kstNow, dateKey, genStamp, melonItems, melonDate, melonLikes, genieItems, bugsItems };
 
@@ -237,7 +299,7 @@ if (require.main === module) (async () => {
   if (IF_MISSING && prev && prev.dateKey === today) { console.log('오늘 이미 수집됨 — 스킵(--if-missing)'); return; }
 
   const out = { dateKey: today, generated: genStamp() };
-  const jobs = [['melon', collectMelon], ['genie', collectGenie], ['bugs', collectBugs], ['circle', collectCircle]];
+  const jobs = [['melon', collectMelon], ['genie', collectGenie], ['bugs', collectBugs], ['circle', collectCircle], ['newest', collectNewest]];
   let okCount = 0;
   for (const [name, fn] of jobs) {
     try {
@@ -254,4 +316,5 @@ if (require.main === module) (async () => {
   if (!okCount) { console.error('전 소스 실패 — 기존 파일 유지'); process.exit(1); }
   fs.writeFileSync(OUT, JSON.stringify(out));
   console.log('저장: ' + OUT + ' (' + Math.round(fs.statSync(OUT).size / 1024) + 'KB)');
+  await mirrorBillboard(path.dirname(OUT));
 })().catch(e => { console.error('수집 실패: ' + e.message); process.exit(1); });
