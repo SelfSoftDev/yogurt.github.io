@@ -34,7 +34,7 @@ jobs:
 
       - name: Collect aladin NowBest snapshot
         run: |
-          for i in 1 2; do
+          for i in 1 2 3 4 5; do
             node tools/collect_aladin_now.js book/aladin_now.json && exit 0
             echo "attempt $i failed; retrying in 30s"
             sleep 30

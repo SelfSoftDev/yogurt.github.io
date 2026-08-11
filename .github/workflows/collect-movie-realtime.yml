@@ -34,7 +34,7 @@ jobs:
 
       - name: Collect realtime snapshot
         run: |
-          for i in 1 2; do
+          for i in 1 2 3 4 5; do
             node tools/collect_movie_realtime.js movie/realtime_snapshot.json && exit 0
             echo "attempt $i failed; retrying in 30s"
             sleep 30
