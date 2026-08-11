@@ -1,0 +1,58 @@
+# helpmeyogurt.github.io repo의 .github/workflows/collect-music-now.yml 로 복사할 것.
+# 실시간 음원 차트 3종 스냅샷 → music/now.json (30분 주기, amend-squash로 히스토리 1개 유지).
+name: collect-music-now
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: collect-music-now
+  cancel-in-progress: true
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 5    # amend-squash에 직전 커밋 필요
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Collect realtime snapshot
+        run: |
+          for i in 1 2 3 4 5; do
+            node tools/collect_music_now.js music/now.json && exit 0
+            echo "attempt $i failed; retrying in 30s"
+            sleep 30
+          done
+          exit 1
+
+      - name: Commit & push (amend-squash)
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git add music/now.json
+          git diff --cached --quiet && echo 'no change' && exit 0
+          SUBJ="music: 실시간 스냅샷"
+          LAST=$(git log -1 --pretty=%s)
+          git commit -m "$SUBJ $(TZ=Asia/Seoul date +%m-%d\ %H:%M)"
+          case "$LAST" in
+            "$SUBJ"*)
+              git reset --soft HEAD~2
+              git commit -m "$SUBJ $(TZ=Asia/Seoul date +%m-%d\ %H:%M)"
+              git push --force-with-lease origin main \
+                || { git fetch origin && git rebase origin/main && git push origin main; }
+              ;;
+            *)
+              git push origin main \
+                || { git fetch origin && git rebase origin/main && git push origin main; }
+              ;;
+          esac

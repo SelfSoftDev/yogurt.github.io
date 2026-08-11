@@ -1,0 +1,48 @@
+# helpmeyogurt.github.io repo의 .github/workflows/collect-music.yml 로 복사할 것.
+# 음원 차트(일간/주간/월간 계열) → music/charts.json. 커밋 메시지는 무브랜드 정책.
+name: collect-music
+
+on:
+  schedule:
+    - cron: '15 20 * * *'   # KST 05:15
+    - cron: '15 1 * * *'    # KST 10:15 (캐치업)
+    - cron: '15 5 * * *'    # KST 14:15 (캐치업)
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: collect-music
+  cancel-in-progress: true
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Collect charts
+        run: |
+          FLAGS="--if-missing"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then FLAGS=""; fi
+          for i in 1 2 3; do
+            node tools/collect_music_charts.js music/charts.json $FLAGS && exit 0
+            echo "attempt $i failed; retrying in 60s"
+            sleep 60
+          done
+          exit 1
+
+      - name: Commit & push
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git add music/charts.json
+          git diff --cached --quiet && echo 'no change' && exit 0
+          git commit -m "music: 차트 갱신 $(TZ=Asia/Seoul date +%m-%d)"
+          git push origin main \
+            || { git fetch origin && git rebase origin/main && git push origin main; }
