@@ -47,7 +47,7 @@ jobs:
           git config user.email 'github-actions[bot]@users.noreply.github.com'
           git add book/aladin_now.json
           git diff --cached --quiet && echo 'no change' && exit 0
-          SUBJ="book: 알라딘 실시간 스냅샷"
+          SUBJ="book: 실시간 스냅샷"
           LAST=$(git log -1 --pretty=%s)
           git commit -m "$SUBJ $(TZ=Asia/Seoul date +%m-%d\ %H:%M)"
           case "$LAST" in

@@ -46,5 +46,5 @@ jobs:
           git config user.email 'github-actions[bot]@users.noreply.github.com'
           git add perform/kopis.json
           git diff --cached --quiet && echo 'no change' && exit 0
-          git commit -m "perform: KOPIS 박스오피스 갱신 $(TZ=Asia/Seoul date +%Y-%m-%d\ %H:%M)"
+          git commit -m "perform: 박스오피스 갱신 $(TZ=Asia/Seoul date +%Y-%m-%d\ %H:%M)"
           git push || { git pull --rebase origin main && git push; }
