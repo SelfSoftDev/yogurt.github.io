@@ -1,0 +1,45 @@
+# helpmeyogurt.github.io repo의 .github/workflows/collect-car.yml 로 복사할 것.
+# 국내 월간 판매(0901) → car/month.json. 커밋 메시지는 무브랜드 정책.
+name: collect-car
+
+on:
+  schedule:
+    - cron: '25 20 * * *'   # KST 05:25
+    - cron: '25 1 * * *'    # KST 10:25 (캐치업)
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: collect-car
+  cancel-in-progress: true
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Collect monthly sales
+        run: |
+          for i in 1 2 3; do
+            node tools/collect_car_month.js car/month.json && exit 0
+            echo "attempt $i failed; retrying in 60s"
+            sleep 60
+          done
+          exit 1
+
+      - name: Commit & push
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git add car/month.json
+          git diff --cached --quiet && echo 'no change' && exit 0
+          git commit -m "car: 월간 판매 갱신 $(TZ=Asia/Seoul date +%m-%d)"
+          git push origin main \
+            || { git fetch origin && git rebase origin/main && git push origin main; }
