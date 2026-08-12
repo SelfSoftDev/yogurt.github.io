@@ -22,6 +22,11 @@ if (!KEY) {
 }
 if (!KEY) { console.error('FINLIFE_KEY 미설정'); process.exit(1); }
 
+let FRED_KEY = (process.env.FRED_KEY || '').trim();
+if (!FRED_KEY) {
+  try { FRED_KEY = fs.readFileSync(path.resolve(__dirname, '../../.secret/fred_api_key.txt'), 'utf8').trim(); } catch (e) {}
+}
+
 const API = 'https://finlife.fss.or.kr/finlifeapi/';
 const GRP_DEP = ['020000', '030300'];                       // 예·적금: 은행/저축은행
 const GRP_LOAN = ['020000', '030300', '050000'];            // 주담대·전세: +보험
@@ -29,7 +34,7 @@ const GRP_CRDT = ['020000', '030300', '030200', '050000'];  // 신용: +여신�
 
 function get(url) {
   return new Promise((resolve, reject) => {
-    const r = https.get(url, { headers: { 'User-Agent': 'yogurt-intrate-collector/2.0' }, timeout: 15000 }, (res) => {
+    const r = https.get(url, { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36' }, timeout: 15000 }, (res) => {
       let d = '';
       res.on('data', c => d += c);
       res.on('end', () => resolve(d));
@@ -161,6 +166,48 @@ function genStamp() { const d = kstNow(); return d.getUTCFullYear() + '-' + p2(d
 
   if (out.dep.length < 100 || out.ins.length < 100) throw new Error('예·적금 수집 부족 (dep ' + out.dep.length + ', ins ' + out.ins.length + ')');
   if (out.mor.length < 30 || out.crdt.length < 30) throw new Error('대출 수집 부족 (mor ' + out.mor.length + ', crdt ' + out.crdt.length + ')');
+
+  // ── 기준금리 (0401) — 실패해도 나머지 데이터는 저장 (렌더러가 번들 폴백)
+  out.base = {};
+  try { // 한국: 한국은행 변경 이력 표 (연도/변경일/금리)
+    const html = await get('https://www.bok.or.kr/portal/singl/baseRate/list.do?dataSeCd=01&menuNo=200643');
+    const tb = html.split('<tbody>')[1].split('</tbody>')[0];
+    const rows = [];
+    for (const tr of (tb.match(/<tr[\s\S]*?<\/tr>/g) || [])) {
+      const tds = (tr.match(/<td[^>]*>([\s\S]*?)<\/td>/g) || []).map(t => t.replace(/<[^>]+>/g, '').trim());
+      if (tds.length >= 3 && /^\d{4}$/.test(tds[0])) rows.push({ year: tds[0], date: tds[1], int: parseFloat(tds[2]).toFixed(2) });
+    }
+    for (let i = 0; i < rows.length; i++) { // 직전 변경 대비 방향 (표시는 상승/하락/유지)
+      const prev = rows[i + 1];
+      const diff = prev ? (parseFloat(rows[i].int) - parseFloat(prev.int)) : 0;
+      rows[i].udico = diff > 0 ? '상승' : (diff < 0 ? '하락' : '유지');
+      rows[i].udnum = Math.abs(diff).toFixed(2);
+    }
+    if (rows.length >= 20) out.base.kor = rows;
+    console.log('기준금리 한국: ' + rows.length + '행 (최신 ' + rows[0].year + ' ' + rows[0].date + ' ' + rows[0].int + '%)');
+  } catch (e) { console.error('한국 기준금리 실패: ' + e.message); }
+
+  try { // 미국: FRED 연방기금 목표 상단(DFEDTARU) 일별 → 변경 시점 추출
+    if (!FRED_KEY) throw new Error('FRED_KEY 미설정');
+    const j = JSON.parse(await get('https://api.stlouisfed.org/fred/series/observations?series_id=DFEDTARU&api_key=' + FRED_KEY + '&file_type=json&observation_start=2008-12-01'));
+    const obs = (j.observations || []).filter(o => o.value !== '.');
+    const rows = [];
+    let last = null;
+    for (const o of obs) {
+      const v = parseFloat(o.value);
+      if (last === null || v !== last) {
+        const diff = last === null ? 0 : v - last;
+        rows.unshift({ // 최신이 앞
+          year: o.date.slice(0, 4), date: o.date.slice(5, 7) + '월 ' + o.date.slice(8, 10) + '일',
+          intlow: (v - 0.25).toFixed(2) + '~', int: v.toFixed(2),
+          udico: diff > 0 ? '상승' : (diff < 0 ? '하락' : '유지'), udnum: Math.abs(diff).toFixed(2),
+        });
+        last = v;
+      }
+    }
+    if (rows.length >= 20) out.base.usa = rows;
+    console.log('기준금리 미국: ' + rows.length + '행 (최신 ' + rows[0].year + ' ' + rows[0].date + ' ' + rows[0].int + '%)');
+  } catch (e) { console.error('미국 기준금리 실패: ' + e.message); }
 
   fs.writeFileSync(OUT, JSON.stringify(out));
   console.log('저장: ' + OUT + ' (comp ' + comp.length + ', ' + Math.round(fs.statSync(OUT).size / 1024) + 'KB)');

@@ -29,6 +29,7 @@ jobs:
       - name: Collect rates
         env:
           FINLIFE_KEY: ${{ secrets.FINLIFE_KEY }}
+          FRED_KEY: ${{ secrets.FRED_KEY }}
         run: |
           for i in 1 2 3; do
             node tools/collect_intrate_rates.js intrate/rates.json && exit 0
