@@ -34,12 +34,26 @@ jobs:
           done
           exit 1
 
+      - name: Collect upcoming models
+        run: |
+          for i in 1 2 3; do
+            node tools/collect_car_coming.js car/coming.json && exit 0
+            echo "attempt $i failed; retrying in 60s"
+            sleep 60
+          done
+          exit 1
+
+      - name: Collect certifications
+        env:
+          DATAGO_KEY: ${{ secrets.DATAGO_KEY }}
+        run: node tools/collect_car_kencis.js car/kencis.json
+
       - name: Commit & push
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email 'github-actions[bot]@users.noreply.github.com'
-          git add car/month.json
+          git add car/
           git diff --cached --quiet && echo 'no change' && exit 0
-          git commit -m "car: 월간 판매 갱신 $(TZ=Asia/Seoul date +%m-%d)"
+          git commit -m "car: 데이터 갱신 $(TZ=Asia/Seoul date +%m-%d)"
           git push origin main \
             || { git fetch origin && git rebase origin/main && git push origin main; }
