@@ -18,9 +18,9 @@ function get(url) {
       headers: { 'User-Agent': 'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Mobile Safari/537.36', 'Referer': 'https://m.blog.naver.com/' + BLOG },
       timeout: 20000,
     }, (res) => {
-      let d = '';
-      res.on('data', c => d += c);
-      res.on('end', () => resolve(d));
+      const ch = [];
+      res.on('data', c => ch.push(c));
+      res.on('end', () => resolve(Buffer.concat(ch).toString('utf8')));
     }).on('error', reject).on('timeout', function () { this.destroy(new Error('timeout')); });
   });
 }

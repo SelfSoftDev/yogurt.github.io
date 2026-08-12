@@ -35,9 +35,9 @@ const GRP_CRDT = ['020000', '030300', '030200', '050000'];  // 신용: +여신�
 function get(url) {
   return new Promise((resolve, reject) => {
     const r = https.get(url, { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36' }, timeout: 15000 }, (res) => {
-      let d = '';
-      res.on('data', c => d += c);
-      res.on('end', () => resolve(d));
+      const ch = [];
+      res.on('data', c => ch.push(c));
+      res.on('end', () => resolve(Buffer.concat(ch).toString('utf8')));
     });
     r.on('error', reject);
     r.on('timeout', () => { r.destroy(); reject(new Error('timeout')); });
