@@ -1,0 +1,58 @@
+# helpmeyogurt.github.io repo의 .github/workflows/collect-tv.yml 로 복사할 것.
+# 시청률 최신 9탭 + 넷플릭스 TOP10 14조합 → tv/. 커밋 메시지는 무브랜드 정책.
+# 시청률 일간은 오전 갱신이라 아침 1회 + 캐치업 2회.
+name: collect-tv
+
+on:
+  schedule:
+    - cron: '35 22 * * *'   # KST 07:35
+    - cron: '35 1 * * *'    # KST 10:35 (캐치업)
+    - cron: '35 5 * * *'    # KST 14:35 (캐치업)
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: collect-tv
+  cancel-in-progress: true
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Collect ratings
+        run: |
+          for i in 1 2 3; do
+            node tools/collect_tv_ratings_now.js tv/ratings_now.json && exit 0
+            echo "attempt $i failed; retrying in 60s"
+            sleep 60
+          done
+          exit 1
+
+      # 넷플릭스는 실패해도 시청률 커밋은 진행
+      - name: Collect netflix top10
+        continue-on-error: true
+        run: |
+          for i in 1 2; do
+            node tools/collect_tv_netflix.js tv/netflix.json && exit 0
+            echo "attempt $i failed; retrying in 60s"
+            sleep 60
+          done
+          exit 1
+
+      - name: Commit & push
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git add tv/
+          git diff --cached --quiet && echo 'no change' && exit 0
+          git commit -m "tv: 순위 갱신 $(TZ=Asia/Seoul date +%m-%d)"
+          git push origin main \
+            || { git fetch origin && git rebase origin/main && git push origin main; }
