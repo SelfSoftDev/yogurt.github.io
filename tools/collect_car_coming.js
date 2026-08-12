@@ -70,6 +70,7 @@ const strip = s => String(s || '').replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').
       // 브랜드 로고 img: photo/brand/{bcode}_40.png alt="브랜드"
       const bm = c.match(/photo\/brand\/(\d+)_40\.png"\s+alt="([^"]+)"/);
       it.brand = bm ? bm[2].trim() : '';
+      it.bcode = bm ? bm[1] : '';
       it.img = it.id ? 'https://autoimg.danawa.com/photo/' + it.id + '/model_200.png' : '';
       // 출시 시기: datestart(따옴표 혼재) 우선 → 스펙형은 "YYYY.MM. 출시" 스팬
       const ds = c.split("class='datestart'")[1] || c.split('class="datestart"')[1];
