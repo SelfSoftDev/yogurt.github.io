@@ -29,25 +29,30 @@ const p2 = n => (n < 10 ? '0' : '') + n;
 function dateKey() { const d = kstNow(); return '' + d.getUTCFullYear() + p2(d.getUTCMonth() + 1) + p2(d.getUTCDate()); }
 function genStamp() { const d = kstNow(); return d.getUTCFullYear() + '-' + p2(d.getUTCMonth() + 1) + '-' + p2(d.getUTCDate()) + ' ' + p2(d.getUTCHours()) + ':' + p2(d.getUTCMinutes()) + ' KST'; }
 
+// 실측 응답: {getVems:{header:{code:"00"}, item:[{CARTYPE,VEH_NM,VEH_TYPE,OFFICE_NM,FUELTYPE,EMIS_CERTI_DATE,NOISE_CERTI_DATE,...}], totalCount}}
+// (문서의 response.body.items.item 구조와 다름 — 2026-08-12 실호출로 확인)
 async function fetchYear(gubun, year) {
   const items = [];
-  for (let page = 1; page <= 30; page++) {
+  for (let page = 1; page <= 40; page++) {
     const url = 'https://apis.data.go.kr/1480523/Kencis/getVems?serviceKey=' + encodeURIComponent(KEY)
       + '&pageNo=' + page + '&numOfRows=500&resultType=JSON&gubun=' + gubun + '&certi_date=' + year;
     const r = await get(url);
     if (r.body.indexOf('SERVICE_KEY_IS_NOT_REGISTERED_ERROR') !== -1) return null; // 미등록 키
     let d;
     try { d = JSON.parse(r.body); } catch (e) { throw new Error('JSON 파싱 실패 (HTTP ' + r.status + '): ' + r.body.slice(0, 120)); }
-    const body = d && d.response && d.response.body;
-    if (!body) throw new Error('예상 밖 응답: ' + r.body.slice(0, 120));
-    let arr = body.items && body.items.item;
+    const body = d && d.getVems;
+    if (!body || !body.header || body.header.code !== '00') throw new Error('예상 밖 응답: ' + r.body.slice(0, 120));
+    let arr = body.item;
     if (!arr) break;
     if (!Array.isArray(arr)) arr = [arr];
-    arr.forEach(it => items.push({
-      name: it.vehNm || '', type: it.vehType || '', cartype: it.cartype || '',
-      fuel: it.fueltype || '', office: it.officeNm || '',
-      emisDate: it.emisCertiDate || '', noiseDate: it.noiseCertiDate || '',
-    }));
+    arr.forEach(it => {
+      if (String(it.CARTYPE || '').indexOf('이륜') !== -1) return; // 자동차 앱 — 이륜(오토바이)은 제외
+      items.push({
+        name: it.VEH_NM || '', type: it.VEH_TYPE || '', cartype: it.CARTYPE || '',
+        fuel: it.FUELTYPE || '', office: it.OFFICE_NM || '',
+        emisDate: it.EMIS_CERTI_DATE || '', noiseDate: it.NOISE_CERTI_DATE || '',
+      });
+    });
     const total = Number(body.totalCount || 0);
     if (page * 500 >= total) break;
     await sleep(300);
@@ -70,9 +75,15 @@ async function fetchYear(gubun, year) {
       all = all.concat(part);
       await sleep(300);
     }
-    // 인증일 내림차순, 승용 위주 정렬은 렌더러에서 — 여기선 원본 유지 + 날짜 정렬만
+    // 인증일 내림차순 + 트림 노이즈 축소: 차명·연료 단위로 최신 1건만 (형식승인은 트림별 다수 행)
     all.sort((a, b) => String(b.emisDate || b.noiseDate).localeCompare(String(a.emisDate || a.noiseDate)));
-    out[k].items = all;
+    const seen = new Set();
+    out[k].items = all.filter(it => {
+      const key = it.name + '|' + it.fuel;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
   }
 
   if (!out.kor.items.length && !out.imp.items.length) throw new Error('수집 0건');
