@@ -38,11 +38,16 @@ jobs:
           done
           exit 1
 
+      # 파킹통장(블로그 최신 글 추적) — 실패해도 금리 커밋은 진행
+      - name: Collect parking accounts
+        continue-on-error: true
+        run: node tools/collect_park.js intrate/park.json
+
       - name: Commit & push
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email 'github-actions[bot]@users.noreply.github.com'
-          git add intrate/rates.json
+          git add intrate/
           git diff --cached --quiet && echo 'no change' && exit 0
           git commit -m "intrate: 금리 갱신 $(TZ=Asia/Seoul date +%m-%d)"
           git push origin main \
