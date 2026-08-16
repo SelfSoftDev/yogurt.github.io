@@ -62,7 +62,8 @@ function startOf(range) { // 어제 기준: w=7일, m=1개월, y=1년
 function mapItems(result) {
   return result.slice(0, 50).map(r => {
     let poster = r.data3 || '';
-    if (poster.startsWith('/upload')) poster = 'https://www.kopis.or.kr' + poster;
+    if (poster.startsWith('/upload')) poster = 'https://kopis.or.kr' + poster;
+    poster = poster.replace('//www.kopis.or.kr', '//kopis.or.kr'); // www는 301 리다이렉트 — 이미지마다 왕복 1회 낭비
     return {
       rnum: r.rnum,
       mt20id: r.data1,
