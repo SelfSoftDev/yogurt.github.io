@@ -37,8 +37,8 @@ jobs:
 
       - name: Commit & push
         run: |
-          git config user.name 'github-actions[bot]'
-          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git config user.name 'yogurt'
+          git config user.email '60679462+helpmeyogurt@users.noreply.github.com'
           git add intrate/base.json
           git diff --cached --quiet && echo 'no change' && exit 0
           git commit -m "intrate: 기준금리 갱신 $(TZ=Asia/Seoul date +%m-%d\ %H:%M)"

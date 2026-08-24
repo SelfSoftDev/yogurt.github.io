@@ -37,8 +37,8 @@ jobs:
 
       - name: Commit & push (amend-squash)
         run: |
-          git config user.name 'github-actions[bot]'
-          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git config user.name 'yogurt'
+          git config user.email '60679462+helpmeyogurt@users.noreply.github.com'
           git add music/now.json
           git diff --cached --quiet && echo 'no change' && exit 0
           SUBJ="music: 실시간 스냅샷"

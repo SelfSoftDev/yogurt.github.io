@@ -42,8 +42,8 @@ jobs:
 
       - name: Commit & push
         run: |
-          git config user.name 'github-actions[bot]'
-          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git config user.name 'yogurt'
+          git config user.email '60679462+helpmeyogurt@users.noreply.github.com'
           git add perform/kopis.json
           git diff --cached --quiet && echo 'no change' && exit 0
           git commit -m "perform: 박스오피스 갱신 $(TZ=Asia/Seoul date +%Y-%m-%d\ %H:%M)"
