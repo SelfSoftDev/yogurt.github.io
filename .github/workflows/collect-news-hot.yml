@@ -1,0 +1,59 @@
+# helpmeyogurt.github.io repo의 .github/workflows/collect-news-hot.yml 로 복사할 것.
+# 핫뉴스 스냅샷 → news/hot.json (5분 주기, amend-squash로 히스토리 1개 유지).
+# 주의: GitHub Actions 스케줄러는 부하 시 */5가 5~15분으로 지연될 수 있음(보장 아님).
+name: collect-news-hot
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: collect-news-hot
+  cancel-in-progress: true
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 5    # amend-squash에 직전 커밋 필요
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Collect hot snapshot
+        run: |
+          for i in 1 2; do
+            node tools/collect_news_hot.js news/hot.json && exit 0
+            echo "attempt $i failed; retrying in 20s"
+            sleep 20
+          done
+          exit 1
+
+      - name: Commit & push (amend-squash)
+        run: |
+          git config user.name 'yogurt'
+          git config user.email '60679462+helpmeyogurt@users.noreply.github.com'
+          git add news/hot.json
+          git diff --cached --quiet && echo 'no change' && exit 0
+          SUBJ="news: 핫뉴스 스냅샷"
+          LAST=$(git log -1 --pretty=%s)
+          git commit -m "$SUBJ $(TZ=Asia/Seoul date +%m-%d\ %H:%M)"
+          case "$LAST" in
+            "$SUBJ"*)
+              git reset --soft HEAD~2
+              git commit -m "$SUBJ $(TZ=Asia/Seoul date +%m-%d\ %H:%M)"
+              git push --force-with-lease origin main \
+                || { git fetch origin && git rebase origin/main && git push origin main; }
+              ;;
+            *)
+              git push origin main \
+                || { git fetch origin && git rebase origin/main && git push origin main; }
+              ;;
+          esac
