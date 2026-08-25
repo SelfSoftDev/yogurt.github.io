@@ -1,7 +1,8 @@
 // news 핫뉴스 경량 수집 — GitHub Actions 5분 주기 (AI 요약용 API).
-//  · 네이트 많이 본 종합 TOP 30 (EUC-KR) + 구글뉴스 주요 RSS TOP 20, 요청 2회로 최소화.
-//  · 출력: news/hot.json {t, dateKey, generated, nate:[{r,t,p,l}], google:[{r,t,p,l}]}
-//    — 제목·언론사·링크만 담은 ~15KB 평문 JSON. 소비처: AI 요약(클로드 코드 /news 등).
+//  · 네이트 많이 본 종합 TOP 30 (EUC-KR) + 구글뉴스 주요 RSS TOP 20.
+//  · 고정 키워드(tools/hot_keywords.json, 최대 5개): 구글뉴스 검색 RSS로 키워드당 TOP 8.
+//  · 출력: news/hot.json {t, dateKey, generated, nate:[{r,t,p,l}], google:[...], keywords:{키워드:[...]}}
+//    — 제목·언론사·링크만 담은 평문 JSON. 소비처: AI 요약(클로드 코드 /news 등).
 //  · rank.json(매시, 섹션별)과 별개 파일 — 앱은 rank.json, AI는 hot.json.
 //
 // 사용: node collect_news_hot.js [출력파일=news/hot.json]
@@ -89,7 +90,21 @@ function parseGoogle(xml, limit) {
     out.google = items; ok++;
   } catch (e) { console.error('google 실패: ' + e.message); }
 
+  // 고정 키워드 (선택) — 구글뉴스 검색 RSS, 키워드별 소프트 실패
+  let kws = [];
+  try { kws = JSON.parse(fs.readFileSync('tools/hot_keywords.json', 'utf8')).slice(0, 5); } catch (e) {}
+  if (kws.length) {
+    out.keywords = {};
+    for (const kw of kws) {
+      try {
+        const items = parseGoogle(await get('https://news.google.com/rss/search?q=' + encodeURIComponent(kw) + '&hl=ko&gl=KR&ceid=KR:ko'), 8);
+        if (items.length) out.keywords[kw] = items;
+      } catch (e) { console.error('키워드 [' + kw + '] 실패: ' + e.message); }
+      await new Promise(r => setTimeout(r, 300));
+    }
+  }
+
   if (!ok) throw new Error('전 소스 실패');
   fs.writeFileSync(OUT, JSON.stringify(out));
-  console.log('저장: ' + OUT + ' (' + ok + '/2 소스, nate ' + (out.nate ? out.nate.length : 0) + ' + google ' + (out.google ? out.google.length : 0) + '건, ' + Math.round(fs.statSync(OUT).size / 1024) + 'KB)');
+  console.log('저장: ' + OUT + ' (' + ok + '/2 소스, nate ' + (out.nate ? out.nate.length : 0) + ' + google ' + (out.google ? out.google.length : 0) + '건, 키워드 ' + (out.keywords ? Object.keys(out.keywords).length : 0) + '개, ' + Math.round(fs.statSync(OUT).size / 1024) + 'KB)');
 })().catch(e => { console.error('수집 실패: ' + e.message); process.exit(1); });
