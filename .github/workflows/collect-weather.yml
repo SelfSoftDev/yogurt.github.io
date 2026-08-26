@@ -1,0 +1,64 @@
+# helpmeyogurt.github.io repo의 .github/workflows/collect-weather.yml 로 복사.
+# 날씨 수집 → weather/now.json (전국 시군구 ~250, 현재+시간별). regions.json은 주1회만 갱신.
+# 주의: GitHub Actions 스케줄러는 최소 5분 + 부하 시 지연(1분 불가). 날씨 nowcast는 30분 단위라 10분이면 충분.
+name: collect-weather
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'        # 날씨 (10분)
+    - cron: '17 3 * * 1'          # regions.json 재생성 (월요일 새벽, 시드 재해석)
+  workflow_dispatch:
+    inputs:
+      regions:
+        description: 'regions.json 재생성'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: collect-weather
+  cancel-in-progress: true
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 5
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Collect weather
+        run: |
+          ARG=""
+          if [ "${{ github.event.schedule }}" = "17 3 * * 1" ] || [ "${{ inputs.regions }}" = "true" ]; then ARG="--regions"; fi
+          for i in 1 2 3; do
+            node tools/collect_weather.js $ARG && exit 0
+            echo "attempt $i failed; retry in 20s"; sleep 20
+          done
+          exit 1
+
+      - name: Commit & push (amend-squash)
+        run: |
+          git config user.name 'yogurt'
+          git config user.email '60679462+helpmeyogurt@users.noreply.github.com'
+          git add weather/now.json weather/regions.json
+          git diff --cached --quiet && echo 'no change' && exit 0
+          SUBJ="weather: 날씨 스냅샷"
+          LAST=$(git log -1 --pretty=%s)
+          git commit -m "$SUBJ $(TZ=Asia/Seoul date +%m-%d\ %H:%M)"
+          case "$LAST" in
+            "$SUBJ"*)
+              git reset --soft HEAD~2
+              git commit -m "$SUBJ $(TZ=Asia/Seoul date +%m-%d\ %H:%M)"
+              git push --force-with-lease origin main || { git fetch origin && git rebase origin/main && git push origin main; }
+              ;;
+            *)
+              git push origin main || { git fetch origin && git rebase origin/main && git push origin main; }
+              ;;
+          esac
