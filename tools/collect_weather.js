@@ -66,8 +66,12 @@ async function fetchWx(code) {
   const cr = j.results.choiceResult || {};
   const nf = cr.nowFcast; if (!nf || !nf.nowFcastList || !nf.nowFcastList.length) throw new Error('빈 nowFcast');
   const cur = nf.nowFcastList[0];
-  const hourly = nf.nowFcastList.map(h => ({ tm: h.aplTm, t: h.tmpr, wc: h.wetrCd, wt: h.wetrTxt, rp: h.rainProb, hm: h.humd, ws: h.windSpd, ra: h.rainAmt }));
-  return { sido: nf.lareaNm, sigungu: nf.mareaNm, dong: nf.sareaNm, tmpr: cur.tmpr, wetrCd: cur.wetrCd, wetrTxt: cur.wetrTxt, rainProb: cur.rainProb, humd: cur.humd, windSpd: cur.windSpd, aplYmdt: cur.aplYmdt, hourly };
+  var nz = function (v) { return (v === undefined || v === null || v === '') ? null : v; };
+  const hourly = nf.nowFcastList.map(h => ({ tm: h.aplTm, t: nz(h.tmpr), wc: h.wetrCd, wt: h.wetrTxt, rp: nz(h.rainProb), hm: nz(h.humd), ws: nz(h.windSpd), ra: nz(h.rainAmt) }));
+  // 현재 시각(첫 항목)엔 강수확률이 없을 수 있음 → 첫 유효 예보값을 카드 대표값으로
+  var repRain = cur.rainProb;
+  if (repRain === undefined || repRain === null) { for (var i = 0; i < hourly.length; i++) { if (hourly[i].rp !== null) { repRain = hourly[i].rp; break; } } }
+  return { sido: nf.lareaNm, sigungu: nf.mareaNm, dong: nf.sareaNm, tmpr: nz(cur.tmpr), wetrCd: cur.wetrCd, wetrTxt: cur.wetrTxt, rainProb: nz(repRain), humd: nz(cur.humd), windSpd: nz(cur.windSpd), aplYmdt: cur.aplYmdt, hourly };
 }
 
 (async () => {
