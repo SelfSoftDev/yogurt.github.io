@@ -4,7 +4,7 @@ name: collect-news-rank
 
 on:
   schedule:
-    - cron: '53 * * * *'    # 매시 53분 (정각 근처 스로틀링 회피)
+    - cron: '12,32,52 * * * *'   # 20분 주기(정각 회피) — 스로틀링으로 간격 벌어져도 앱 신선도(8h) 내 유지
   workflow_dispatch:
 
 permissions:
