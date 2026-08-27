@@ -4,7 +4,7 @@ name: collect-base
 
 on:
   schedule:
-    - cron: '10 * * * *'    # 매시 10분
+    - cron: '37 * * * *'    # 매시 37분 (정각 근처 스로틀링 회피)
   workflow_dispatch:
 
 permissions:

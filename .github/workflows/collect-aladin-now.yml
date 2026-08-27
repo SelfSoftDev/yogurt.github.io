@@ -10,7 +10,7 @@ name: collect-aladin-now
 
 on:
   schedule:
-    - cron: '*/30 * * * *'  # 30분 주기 (실제는 러너 사정에 따라 30~60분)
+    - cron: '13,43 * * * *'  # 30분 주기, 정각/반정각 회피 (실제는 러너 사정에 따라 지연)
   workflow_dispatch:
 
 permissions:

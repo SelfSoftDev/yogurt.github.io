@@ -23,7 +23,7 @@ function req(url, opts) {
     const r = mod.request({
       hostname: u.hostname, path: u.pathname + u.search, method: 'GET',
       headers: { 'User-Agent': UA, 'Accept': '*/*', 'Accept-Language': 'ko', 'Accept-Encoding': 'gzip' },
-      timeout: 30000,
+      timeout: 45000,
     }, (res) => {
       if (res.statusCode >= 301 && res.statusCode <= 308 && res.headers.location && (opts._redir || 0) < 3) {
         res.resume();

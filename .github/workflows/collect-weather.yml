@@ -5,7 +5,7 @@ name: collect-weather
 
 on:
   schedule:
-    - cron: '*/10 * * * *'        # 날씨 (10분)
+    - cron: '3,13,23,33,43,53 * * * *'   # 날씨 10분 주기, 정각 회피
     - cron: '17 3 * * 1'          # regions.json 재생성 (월요일 새벽, 시드 재해석)
   workflow_dispatch:
     inputs:

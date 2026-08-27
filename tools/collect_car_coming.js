@@ -23,7 +23,7 @@ function post(url, body) {
         'Content-Type': 'application/x-www-form-urlencoded', 'Content-Length': Buffer.byteLength(body),
         'Referer': 'https://auto.danawa.com/newcar/?Work=coming',
       },
-      timeout: 30000,
+      timeout: 45000,
     }, (res) => {
       if (res.statusCode !== 200) { res.resume(); return reject(new Error('HTTP ' + res.statusCode)); }
       const ch = [];

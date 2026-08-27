@@ -4,7 +4,7 @@ name: collect-music-now
 
 on:
   schedule:
-    - cron: '*/30 * * * *'
+    - cron: '18,48 * * * *'   # 30분 주기, 정각/반정각 회피
   workflow_dispatch:
 
 permissions:

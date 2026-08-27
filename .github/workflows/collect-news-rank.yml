@@ -4,7 +4,7 @@ name: collect-news-rank
 
 on:
   schedule:
-    - cron: '25 * * * *'    # 매시 25분
+    - cron: '53 * * * *'    # 매시 53분 (정각 근처 스로틀링 회피)
   workflow_dispatch:
 
 permissions:
