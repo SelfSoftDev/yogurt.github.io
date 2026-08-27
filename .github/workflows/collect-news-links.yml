@@ -25,7 +25,13 @@ jobs:
           node-version: 20
 
       - name: Healthcheck links
-        run: node tools/collect_news_links.js news/links.json
+        run: |
+          for i in 1 2 3; do
+            node tools/collect_news_links.js news/links.json && exit 0
+            echo "attempt $i failed; retrying in 30s"
+            sleep 30
+          done
+          exit 1
 
       - name: Commit & push
         run: |
