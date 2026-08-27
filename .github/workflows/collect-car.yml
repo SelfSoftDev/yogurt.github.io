@@ -44,9 +44,16 @@ jobs:
           exit 1
 
       - name: Collect certifications
+        continue-on-error: true   # 보조 데이터(인증현황) 실패해도 메인(판매/출시예정) 커밋은 진행
         env:
           DATAGO_KEY: ${{ secrets.DATAGO_KEY }}
-        run: node tools/collect_car_kencis.js car/kencis.json
+        run: |
+          for i in 1 2 3; do
+            node tools/collect_car_kencis.js car/kencis.json && exit 0
+            echo "attempt $i failed; retrying in 30s"
+            sleep 30
+          done
+          exit 1
 
       - name: Commit & push
         run: |

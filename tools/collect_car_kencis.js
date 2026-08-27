@@ -15,7 +15,7 @@ const KEY = (process.env.DATAGO_KEY || '').trim();
 
 function get(url) {
   return new Promise((resolve, reject) => {
-    https.get(url, { timeout: 30000, headers: { 'Accept': '*/*' } }, (res) => {
+    https.get(url, { timeout: 45000, headers: { 'Accept': '*/*' } }, (res) => {
       const ch = [];
       res.on('data', c => ch.push(c));
       res.on('end', () => resolve({ status: res.statusCode, body: Buffer.concat(ch).toString('utf8') }));
