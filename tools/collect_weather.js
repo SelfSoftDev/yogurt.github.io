@@ -17,6 +17,8 @@ const SEED = require('./region_seed.js');
 const OUT_DIR = 'weather';
 const REGIONS = path.join(OUT_DIR, 'regions.json');
 const NOW = path.join(OUT_DIR, 'now.json');
+const WEEKLY = path.join(OUT_DIR, 'weekly.json');
+const WDAY = ['일', '월', '화', '수', '목', '금', '토'];
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/126 Safari/537.36';
 
 function get(url, host) {
@@ -74,6 +76,31 @@ async function fetchWx(code) {
   return { sido: nf.lareaNm, sigungu: nf.mareaNm, dong: nf.sareaNm, tmpr: nz(cur.tmpr), wetrCd: cur.wetrCd, wetrTxt: cur.wetrTxt, rainProb: nz(repRain), humd: nz(cur.humd), windSpd: nz(cur.windSpd), aplYmdt: cur.aplYmdt, hourly };
 }
 
+// 주간 예보 — today 페이지 SSR의 domesticWeeklyFcastList(10일) 파싱.
+// choiceApi엔 주간 모듈이 없어(weeklyFcast=빈값) HTML에서 추출. 주간은 느리게 바뀌어 저빈도 수집.
+function extractArr(html, key) {
+  const i = html.indexOf('"' + key + '":');
+  if (i < 0) return null;
+  let s = html.indexOf('[', i), depth = 0;
+  for (let k = s; k < html.length; k++) {
+    const c = html[k];
+    if (c === '[') depth++;
+    else if (c === ']') { depth--; if (depth === 0) { try { return JSON.parse(html.slice(s, k + 1)); } catch (e) { return null; } } }
+  }
+  return null;
+}
+async function fetchWeekly(code) {
+  const html = await get('https://weather.naver.com/today/' + code);
+  const arr = extractArr(html, 'domesticWeeklyFcastList');
+  if (!arr || !arr.length) throw new Error('빈 weekly');
+  const nz = v => (v === undefined || v === null || v === '') ? null : v;
+  return arr.map(d => {
+    const ymd = String(d.aplYmd || '');
+    const dt = new Date(+ymd.slice(0, 4), +ymd.slice(4, 6) - 1, +ymd.slice(6, 8));
+    return { d: ymd, w: WDAY[dt.getDay()], aw: d.amWetrTxt, ar: nz(d.amRainProb), pw: d.pmWetrTxt, pr: nz(d.pmRainProb), tn: nz(d.minTmpr), tx: nz(d.maxTmpr) };
+  });
+}
+
 (async () => {
   fs.mkdirSync(OUT_DIR, { recursive: true });
   let regions;
@@ -81,6 +108,20 @@ async function fetchWx(code) {
     regions = await buildRegions();
   } else {
     regions = JSON.parse(fs.readFileSync(REGIONS, 'utf8')).regions;
+  }
+
+  // 주간 예보 수집 모드 (별도 저빈도 크론)
+  if (process.argv.includes('--weekly')) {
+    const wk = {}; let wok = 0, wfail = 0;
+    for (const r of regions) {
+      try { wk[r.code] = await fetchWeekly(r.code); wok++; }
+      catch (e) { wfail++; console.error('주간실패 ' + r.term + '(' + r.code + '): ' + e.message); }
+      await sleep(120);
+    }
+    if (wok < regions.length * 0.5) throw new Error('주간 수집 과반 실패 (' + wok + '/' + regions.length + ')');
+    fs.writeFileSync(WEEKLY, JSON.stringify({ t: Date.now(), generated: stamp(), count: wok, wk }));
+    console.log('weekly.json: ' + wok + '개 성공, ' + wfail + '개 실패, ' + Math.round(fs.statSync(WEEKLY).size / 1024) + 'KB');
+    return;
   }
 
   const wx = {}; let ok = 0, fail = 0;
