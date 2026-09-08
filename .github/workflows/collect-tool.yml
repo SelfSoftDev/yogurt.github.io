@@ -37,6 +37,14 @@ jobs:
           done
           exit 1
 
+      # 확장 데이터(환율/일출일몰/대기질) — 보조라 실패해도 공휴일 커밋은 진행
+      - name: Collect fx/sun/air
+        continue-on-error: true
+        env:
+          DATAGO_KEY: ${{ secrets.DATAGO_KEY }}
+          KOREAEXIM_KEY: ${{ secrets.KOREAEXIM_KEY }}
+        run: node tools/collect_tool_ext.js
+
       - name: Commit & push (amend-squash)
         run: |
           git config user.name 'yogurt'
