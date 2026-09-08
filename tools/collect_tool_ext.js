@@ -13,7 +13,7 @@ const DATAGO_KEY = process.env.DATAGO_KEY;
 
 function get(url) {
   return new Promise((resolve, reject) => {
-    https.get(url, { timeout: 20000, headers: { 'Accept': '*/*' } }, (res) => {
+    https.get(url, { timeout: 45000, headers: { 'Accept': '*/*' } }, (res) => {
       const ch = []; res.on('data', c => ch.push(c));
       res.on('end', () => resolve({ status: res.statusCode, body: Buffer.concat(ch).toString('utf8') }));
     }).on('error', reject).on('timeout', function () { this.destroy(new Error('timeout')); });
@@ -70,7 +70,7 @@ async function collectSun() {
     const day = ymd(d);
     days[day] = {};
     for (const city of SUN_CITIES) {
-      const url = `https://apis.data.go.kr/B090041/openapi/service/RiseSetInfoService/getAreaRiseSetInfo?serviceKey=${DATAGO_KEY}&locdate=${day}&location=${encodeURIComponent(city)}`;
+      const url = `https://apis.data.go.kr/B090041/openapi/service/RiseSetInfoService/getAreaRiseSetInfo?serviceKey=${encodeURIComponent(DATAGO_KEY)}&locdate=${day}&location=${encodeURIComponent(city)}`;
       let r;
       try { r = await get(url); } catch (e) { console.error(`sun ${city} ${day}: ${e.message}`); continue; }
       const code = xmlTag(r.body, 'resultCode');
@@ -97,7 +97,7 @@ async function collectAir() {
   const rows = {};
   let anyOk = false;
   for (const item of ['PM10', 'PM25']) {
-    const url = `https://apis.data.go.kr/B552584/ArpltnStatsSvc/getCtprvnMesureLIst?serviceKey=${DATAGO_KEY}&returnType=json&numOfRows=1&pageNo=1&itemCode=${item}&dataGubun=HOUR`;
+    const url = `https://apis.data.go.kr/B552584/ArpltnStatsSvc/getCtprvnMesureLIst?serviceKey=${encodeURIComponent(DATAGO_KEY)}&returnType=json&numOfRows=1&pageNo=1&itemCode=${item}&dataGubun=HOUR`;
     let r;
     try { r = await get(url); } catch (e) { console.error(`air ${item}: ${e.message}`); continue; }
     let j;

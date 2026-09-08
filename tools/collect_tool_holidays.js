@@ -16,7 +16,7 @@ if (!KEY) { console.error('DATAGO_KEY 미설정'); process.exit(1); }
 
 function get(url) {
   return new Promise((resolve, reject) => {
-    https.get(url, { timeout: 20000 }, (res) => {
+    https.get(url, { timeout: 45000, headers: { 'Accept': '*/*' } }, (res) => {
       const ch = []; res.on('data', c => ch.push(c));
       res.on('end', () => resolve({ status: res.statusCode, body: Buffer.concat(ch).toString('utf8') }));
     }).on('error', reject).on('timeout', function () { this.destroy(new Error('timeout')); });
@@ -41,7 +41,7 @@ async function fetchYear(year) {
     const mm = (m < 10 ? '0' : '') + m;
     let page = 1, more = true;
     while (more) {
-      const url = `${BASE}?serviceKey=${KEY}&solYear=${year}&solMonth=${mm}&numOfRows=50&pageNo=${page}&_type=xml`;
+      const url = `${BASE}?serviceKey=${encodeURIComponent(KEY)}&solYear=${year}&solMonth=${mm}&numOfRows=50&pageNo=${page}&_type=xml`;
       let r;
       try { r = await get(url); } catch (e) { console.error(`${year}-${mm} p${page} 실패: ${e.message}`); ok = false; break; }
       if (r.status !== 200) { console.error(`${year}-${mm} HTTP ${r.status}`); ok = false; break; }
