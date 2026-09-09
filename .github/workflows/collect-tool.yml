@@ -29,7 +29,7 @@ jobs:
 
       - name: Collect holidays
         env:
-          DATAGO_KEY: ${{ secrets.DATAGO_KEY }}
+          DATAGO_KEY: ${{ secrets.DATAGO_TOOL_KEY }}
         run: |
           for i in 1 2 3; do
             node tools/collect_tool_holidays.js && exit 0
@@ -41,7 +41,7 @@ jobs:
       - name: Collect fx/sun/air
         continue-on-error: true
         env:
-          DATAGO_KEY: ${{ secrets.DATAGO_KEY }}
+          DATAGO_KEY: ${{ secrets.DATAGO_TOOL_KEY }}
           KOREAEXIM_KEY: ${{ secrets.KOREAEXIM_KEY }}
         run: node tools/collect_tool_ext.js
 
