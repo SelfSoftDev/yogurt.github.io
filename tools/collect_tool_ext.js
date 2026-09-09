@@ -98,12 +98,18 @@ async function collectAir() {
   let anyOk = false;
   for (const item of ['PM10', 'PM25']) {
     const url = `https://apis.data.go.kr/B552584/ArpltnStatsSvc/getCtprvnMesureLIst?serviceKey=${encodeURIComponent(DATAGO_KEY)}&returnType=json&numOfRows=1&pageNo=1&itemCode=${item}&dataGubun=HOUR`;
-    let r;
-    try { r = await get(url); } catch (e) { console.error(`air ${item}: ${e.message}`); continue; }
-    let j;
-    try { j = JSON.parse(r.body); } catch (e) { console.error(`air ${item}: JSON 아님 (${r.body.slice(0, 80)})`); continue; }
-    const hdr = j.response && j.response.header;
-    if (!hdr || hdr.resultCode !== '00') { console.error(`air ${item}: ${hdr ? hdr.resultCode + ' ' + hdr.resultMsg : '헤더 없음'}`); continue; }
+    let j = null;
+    for (let a = 1; a <= 3 && !j; a++) {           // 에어코리아 백엔드 간헐 504 → 재시도
+      let r;
+      try { r = await get(url); } catch (e) { console.error(`air ${item} t${a}: ${e.message}`); await sleep(5000); continue; }
+      try {
+        const cand = JSON.parse(r.body);
+        if (cand.response && cand.response.header && cand.response.header.resultCode === '00') { j = cand; break; }
+        console.error(`air ${item} t${a}: ${cand.response ? cand.response.header.resultCode : (cand.OpenAPI_ServiceResponse ? cand.OpenAPI_ServiceResponse.cmmMsgHeader.errMsg : r.status)}`);
+      } catch (e) { console.error(`air ${item} t${a}: JSON 아님 (${r.body.slice(0, 60)})`); }
+      await sleep(5000);
+    }
+    if (!j) continue;
     const it = j.response.body && j.response.body.items && j.response.body.items[0];
     if (!it) continue;
     for (const s of AIR_SIDO) {
