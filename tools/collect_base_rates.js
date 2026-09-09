@@ -17,7 +17,7 @@ if (!FRED_KEY) {
 
 function get(url) {
   return new Promise((resolve, reject) => {
-    const r = https.get(url, { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36' }, timeout: 20000 }, (res) => {
+    const r = https.get(url, { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36' }, timeout: 45000 }, (res) => {
       const ch = [];
       res.on('data', c => ch.push(c));
       res.on('end', () => resolve(Buffer.concat(ch).toString('utf8')));
